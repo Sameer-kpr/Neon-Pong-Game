@@ -1,0 +1,166 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Neon Pong - 2-player, Stake, Play, Win at Server level</title>
+<meta name="viewport" content ="width=device-width, initial-scale=1" />
+<style>
+    :root{
+    --bg:#7CFC00;
+    --panel:#7df9ff;
+    --accent:#0f1420;
+    --accent2:#0a0d12;
+    --good:#7CFC00;
+    --warn:#ff5f6d;
+    --bad: rgba(125,249,255,.6);
+    --muted: #9aa5b1;
+    --glow: 0 0 16px rgba(125,249,255,.35), 0 0 48px rgba(179,136,255,.15);
+    --glow-strong: 0 0 24px rgba(125,249,255,.6), 0 0 64px rgba(179,136,255,.35); 
+    }
+    *{box-sizing:border-box};
+    body{
+        margin:0; padding:25px;
+        font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, "Noto Sans", sans-serif;
+        background: radial-gradient(1200px 700px at 10% 10%  #0e1522 0%, #0a0d12 50%, #07090d 100%) fixed;
+        color:#e6edf3;
+    }
+    .wrap{max-width:1100px; margin:0 auto;display:grid;grid-template-columns: 362px 1fr;gap:20px}
+    @media (max-width:1000px){.wrap {grid-template-columns:1fr}}
+    .card{
+        background:linear-gradient(165deg, rgba(23,31,51,.74), rgba(13,18,31,.74));
+        border:1px solid rgba(125,249,255,.12);
+        border-radius:16px; padding:16px 16px 16px;
+        box-shadow: var(--glow);
+        backdrop-filter: blur(8px);
+    }
+    h1{
+        margin:0 0 10px; font-size:28px; font-weight:805;
+        letter-spacing:.3px; color:var(--accent);
+        text-shadow: var(--glow-strong);
+    }
+    .subtitle{margin-top:-2px;color:var(--muted);font-size:14px}
+    .stack{display:flex; flex-direction:column; gap:10px}
+    label{font-size:12px;color:#b8c2cc}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    input[type="number"], input[type="text"]{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(125,249,255,.18);
+    background:#0b0f18; color:#dbe7ff; outline:none; font-size:14px;
+    box-shadow: inset 0 0 0 1px rgba(179,136,255,.08);
+    }
+    .btn{
+        padding:10px 14px; border-radius:10px; border:1px solid rgba(125,249,255,.35);
+        background:linear-gradient(160deg, rgba(125,249,255,.18), rgba(179,136,255,.18));
+        color:#eaf9ff; cursor:pointer; font-weight:700; letter-spacing:.2px;
+        box-shadow: var(--glow);
+        transition:.15s transform ease, .25s box-shadow ease, .25s background ease;
+    }
+    .btn:hover{transform: translateY(-1px); box-shadow: var(--glow-strong)}
+    .btn:disabled{opacity:.55; cursor:not-allowed; transform:none; box-shadow:none}
+    .btn.alt{border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.06)}
+    .pill{
+        padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.18);
+        display:inline-flex; gap:6px; align-items:center; color:#cfe7ff; background:rgba(255,255,255,.05)
+    }
+    .grid2{display:grid;grid-template-columns:1fr 1fr; gap:10px}
+    .log{height:180px; overflow:auto; background:#0b0f18;border-radius:10px;padding:10px;border:1px solid rgba(125,249,255,.1)}
+    .log .line{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#cfe7ff}
+    .good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+    .stage{position:relative}
+    canvas{width:100%; height:auto; background: radial-gradient(400px 240px at 50% 50%, #0b0f18 0%, #05070c 65%, #04060a 100%);
+        border-radius:16px; border:1px solid rgba(125,249,255,.15); box-shadow: var(--glow)}
+    .hud{
+        position:absolute; left:0; right:0; top:10px; display:flex; justify-content:space-between;
+        padding:0 20px; font-weight:800; text-shadow:0 0 8px rgba(0,0,0,.6)
+    }
+    .score{font-size:60px; color:#e6faff}
+    .midline{position:absolute; top:0; bottom:0; left:50%; width:2px; background: repeating-linear-gradient(
+        to bottom, rgba(125,249,255,.35), rgba(125,249,255,.35) 14px, transparent 19px, transparent 32px)}
+    .toast{
+        position: fixed; bottom: 18px; left:50%; transform:translateX(-50%);
+        background: rgba(12,18,28,.9); border:1px solid rgba(125,249,255,.2); color:#eaf9ff;
+        padding:10px 14px; border-radius:10px; box-shadow: var(--glow); display:none
+    }
+</style>
+</head>
+
+<body>
+    <div class="wrap">
+        
+        <div class="card">
+        <h1>Neon Pong 2 Player Game</h1>
+        <div class="subtitle">Local 2-player • Stake → Play → Winner takes 2x </div>
+        <div class="stack" style="margin-top:24px">
+        <div class="row">
+            <span class="pill">P1: <strong id="p1Bal">0</strong> GT</span>
+            <span class="pill">P2: <strong id="p2Bal">0</strong> GT</span>
+        </div>
+  
+        <div class="grid2">
+            <div>
+                <label>Buy GT (mock) — P1</label>
+                <div class="row">
+                <input id="p1Buy" type="number" min="1" step="1" placeholder="USDT amount" />
+                <button class="btn" id="p1BuyBtn">Buy</button>
+            </div>
+            </div>
+            <div>
+                <label>Buy GT (mock) — P2</label>
+                <div class="row">
+                <input id="p2Buy" type="number" min="1" step="1" placeholder="USDT amount" />
+                <button class="btn" id="p2BuyBtn">Buy</button>
+            </div>
+            </div>
+            </div>
+  
+            <div class="grid2">
+            <div>
+                <label>Stake GT — P1</label>
+                <div class="row">
+                <input id="p1Stake" type="number" min="1" step="1" placeholder="Stake amount (GT)" />
+                <button class="btn alt" id="p1StakeBtn">Stake</button>
+            </div>
+            <div class="row"><span class="pill">P1 staked: <strong id="p1Staked">0</strong></span></div>
+            </div>
+            <div>
+                <label>Stake GT — P2</label>
+                <div class="row">
+                <input id="p2Stake" type="number" min="1" step="1" placeholder="Stake amount (GT)" />
+                <button class="btn alt" id="p2StakeBtn">Stake</button>
+            </div>
+            <div class="row"><span class="pill">P2 staked: <strong id="p2Staked">0</strong></span></div>
+            </div>
+            </div>
+  
+            <div class="row" style="justify-content:space-between">
+            <div class="row" style="gap:7px">
+                <button class="btn" id="startBtn" disabled>Start Match</button>
+                <button class="btn alt" id="resetBtn">Reset</button>
+            </div>
+            <span class="pill">First to <strong id="winScore">7</strong></span>
+            </div>
+  
+            <div class="stack">
+            <label>Txn Log (mock explorer)</label>
+            <div id="log" class="log"></div>
+            </div>
+            <div class="stack">
+            <small class="muted" style="color:#9fb1c0">Controls — P1: <b>W/S</b>, P2: <b>↑ / ↓</b>.  
+            </small>
+            </div>
+        </div>
+        </div>
+  
+        
+        <div class="card">
+        <div class="stage">
+            <div class="hud">
+            <div class="score" id="s1">0</div>
+            <div class="score" id="s2">0</div>
+        </div>
+        <div class="midline"></div>
+        <canvas id="cv" width="980" height="560"></canvas>
+        </div>
+    </div>
+    </div>
+  
+    <div id="toast" class="toast"></div>
