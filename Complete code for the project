@@ -1,0 +1,448 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Neon Pong - 2-player, Stake, Play, Win at Server level</title>
+<meta name="viewport" content ="width=device-width, initial-scale=1" />
+<style>
+    :root{
+    --bg:#7CFC00;
+    --panel:#7df9ff;
+    --accent:#0f1420;
+    --accent2:#0a0d12;
+    --good:#7CFC00;
+    --warn:#ff5f6d;
+    --bad: rgba(125,249,255,.6);
+    --muted: #9aa5b1;
+    --glow: 0 0 16px rgba(125,249,255,.35), 0 0 48px rgba(179,136,255,.15);
+    --glow-strong: 0 0 24px rgba(125,249,255,.6), 0 0 64px rgba(179,136,255,.35); 
+    }
+    *{box-sizing:border-box};
+    body{
+        margin:0; padding:25px;
+        font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, "Noto Sans", sans-serif;
+        background: radial-gradient(1200px 700px at 10% 10%  #0e1522 0%, #0a0d12 50%, #07090d 100%) fixed;
+        color:#e6edf3;
+    }
+    .wrap{max-width:1100px; margin:0 auto;display:grid;grid-template-columns: 362px 1fr;gap:20px}
+    @media (max-width:1000px){.wrap {grid-template-columns:1fr}}
+    .card{
+        background:linear-gradient(165deg, rgba(23,31,51,.74), rgba(13,18,31,.74));
+        border:1px solid rgba(125,249,255,.12);
+        border-radius:16px; padding:16px 16px 16px;
+        box-shadow: var(--glow);
+        backdrop-filter: blur(8px);
+    }
+    h1{
+        margin:0 0 10px; font-size:28px; font-weight:805;
+        letter-spacing:.3px; color:var(--accent);
+        text-shadow: var(--glow-strong);
+    }
+    .subtitle{margin-top:-2px;color:var(--muted);font-size:14px}
+    .stack{display:flex; flex-direction:column; gap:10px}
+    label{font-size:12px;color:#b8c2cc}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    input[type="number"], input[type="text"]{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(125,249,255,.18);
+    background:#0b0f18; color:#dbe7ff; outline:none; font-size:14px;
+    box-shadow: inset 0 0 0 1px rgba(179,136,255,.08);
+    }
+    .btn{
+        padding:10px 14px; border-radius:10px; border:1px solid rgba(125,249,255,.35);
+        background:linear-gradient(160deg, rgba(125,249,255,.18), rgba(179,136,255,.18));
+        color:#eaf9ff; cursor:pointer; font-weight:700; letter-spacing:.2px;
+        box-shadow: var(--glow);
+        transition:.15s transform ease, .25s box-shadow ease, .25s background ease;
+    }
+    .btn:hover{transform: translateY(-1px); box-shadow: var(--glow-strong)}
+    .btn:disabled{opacity:.55; cursor:not-allowed; transform:none; box-shadow:none}
+    .btn.alt{border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.06)}
+    .pill{
+        padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.18);
+        display:inline-flex; gap:6px; align-items:center; color:#cfe7ff; background:rgba(255,255,255,.05)
+    }
+    .grid2{display:grid;grid-template-columns:1fr 1fr; gap:10px}
+    .log{height:180px; overflow:auto; background:#0b0f18;border-radius:10px;padding:10px;border:1px solid rgba(125,249,255,.1)}
+    .log .line{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#cfe7ff}
+    .good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+    .stage{position:relative}
+    canvas{width:100%; height:auto; background: radial-gradient(400px 240px at 50% 50%, #0b0f18 0%, #05070c 65%, #04060a 100%);
+        border-radius:16px; border:1px solid rgba(125,249,255,.15); box-shadow: var(--glow)}
+    .hud{
+        position:absolute; left:0; right:0; top:10px; display:flex; justify-content:space-between;
+        padding:0 20px; font-weight:800; text-shadow:0 0 8px rgba(0,0,0,.6)
+    }
+    .score{font-size:60px; color:#e6faff}
+    .midline{position:absolute; top:0; bottom:0; left:50%; width:2px; background: repeating-linear-gradient(
+        to bottom, rgba(125,249,255,.35), rgba(125,249,255,.35) 14px, transparent 19px, transparent 32px)}
+    .toast{
+        position: fixed; bottom: 18px; left:50%; transform:translateX(-50%);
+        background: rgba(12,18,28,.9); border:1px solid rgba(125,249,255,.2); color:#eaf9ff;
+        padding:10px 14px; border-radius:10px; box-shadow: var(--glow); display:none
+    }
+</style>
+</head>
+
+<body>
+    <div class="wrap">
+        
+        <div class="card">
+        <h1>Neon Pong 2 Player Game</h1>
+        <div class="subtitle">Local 2-player • Stake → Play → Winner takes 2x </div>
+        <div class="stack" style="margin-top:24px">
+        <div class="row">
+            <span class="pill">P1: <strong id="p1Bal">0</strong> GT</span>
+            <span class="pill">P2: <strong id="p2Bal">0</strong> GT</span>
+        </div>
+  
+        <div class="grid2">
+            <div>
+                <label>Buy GT (mock) — P1</label>
+                <div class="row">
+                <input id="p1Buy" type="number" min="1" step="1" placeholder="USDT amount" />
+                <button class="btn" id="p1BuyBtn">Buy</button>
+            </div>
+            </div>
+            <div>
+                <label>Buy GT (mock) — P2</label>
+                <div class="row">
+                <input id="p2Buy" type="number" min="1" step="1" placeholder="USDT amount" />
+                <button class="btn" id="p2BuyBtn">Buy</button>
+            </div>
+            </div>
+            </div>
+  
+            <div class="grid2">
+            <div>
+                <label>Stake GT — P1</label>
+                <div class="row">
+                <input id="p1Stake" type="number" min="1" step="1" placeholder="Stake amount (GT)" />
+                <button class="btn alt" id="p1StakeBtn">Stake</button>
+            </div>
+            <div class="row"><span class="pill">P1 staked: <strong id="p1Staked">0</strong></span></div>
+            </div>
+            <div>
+                <label>Stake GT — P2</label>
+                <div class="row">
+                <input id="p2Stake" type="number" min="1" step="1" placeholder="Stake amount (GT)" />
+                <button class="btn alt" id="p2StakeBtn">Stake</button>
+            </div>
+            <div class="row"><span class="pill">P2 staked: <strong id="p2Staked">0</strong></span></div>
+            </div>
+            </div>
+  
+            <div class="row" style="justify-content:space-between">
+            <div class="row" style="gap:7px">
+                <button class="btn" id="startBtn" disabled>Start Match</button>
+                <button class="btn alt" id="resetBtn">Reset</button>
+            </div>
+            <span class="pill">First to <strong id="winScore">7</strong></span>
+            </div>
+  
+            <div class="stack">
+            <label>Txn Log (mock explorer)</label>
+            <div id="log" class="log"></div>
+            </div>
+            <div class="stack">
+            <small class="muted" style="color:#9fb1c0">Controls — P1: <b>W/S</b>, P2: <b>↑ / ↓</b>.  
+            </small>
+            </div>
+        </div>
+        </div>
+  
+        
+        <div class="card">
+        <div class="stage">
+            <div class="hud">
+            <div class="score" id="s1">0</div>
+            <div class="score" id="s2">0</div>
+        </div>
+        <div class="midline"></div>
+        <canvas id="cv" width="980" height="560"></canvas>
+        </div>
+    </div>
+    </div>
+  
+    <div id="toast" class="toast"></div>
+  
+    <script>
+    const state = {
+    p1: { gt: 0, staked: 0 },
+    p2: { gt: 0, staked: 0 },
+    stakeLocked: false,
+    targetStake: 0,           
+    started: false,
+    winScore: 7
+    };
+  
+    const el = {
+    p1Bal: document.getElementById('p1Bal'),
+    p2Bal: document.getElementById('p2Bal'),
+    p1Buy: document.getElementById('p1Buy'),
+    p2Buy: document.getElementById('p2Buy'),
+    p1BuyBtn: document.getElementById('p1BuyBtn'),
+    p2BuyBtn: document.getElementById('p2BuyBtn'),
+    p1Stake: document.getElementById('p1Stake'),
+    p2Stake: document.getElementById('p2Stake'),
+    p1StakeBtn: document.getElementById('p1StakeBtn'),
+    p2StakeBtn: document.getElementById('p2StakeBtn'),
+    p1Staked: document.getElementById('p1Staked'),
+    p2Staked: document.getElementById('p2Staked'),
+    startBtn: document.getElementById('startBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    s1: document.getElementById('s1'),
+    s2: document.getElementById('s2'),
+    log: document.getElementById('log'),
+    toast: document.getElementById('toast'),
+    winScore: document.getElementById('winScore'),
+    canvas: document.getElementById('cv')
+    };
+  
+    function fmt(n){ return Number(n).toLocaleString() }
+    function addLog(text, cls=""){ 
+    const line = document.createElement('div'); 
+    line.className = 'line ' + cls; 
+    line.textContent = text; 
+    el.log.prepend(line);
+    }
+    function fakeHash(){
+    const chars='abcdef0123456789'; let h='0x';
+    for(let i=0;i<64;i++)h+=chars[Math.floor(Math.random()*chars.length)];
+    return h;
+    }
+    function toast(msg){
+        el.toast.textContent = msg;
+        el.toast.style.display='block';
+        clearTimeout(toast._t);
+        toast._t=setTimeout(()=>{ el.toast.style.display='none' }, 1800);
+    }
+  
+    function refreshUI(){
+        el.p1Bal.textContent = fmt(state.p1.gt);
+        el.p2Bal.textContent = fmt(state.p2.gt);
+        el.p1Staked.textContent = fmt(state.p1.staked);
+        el.p2Staked.textContent = fmt(state.p2.staked);
+        el.startBtn.disabled = !(state.p1.staked>0 && state.p1.staked===state.p2.staked && !state.started);
+        el.winScore.textContent = state.winScore;
+    }
+  
+    function buy(player, usdt){
+        usdt = Math.max(0, Math.floor(usdt));
+        if(!usdt){ toast("Enter USDT amount > 0"); return; }
+        const gt = usdt*10;
+        state[player].gt += gt;
+        addLog(`[BUY] ${player.toUpperCase()} exchanged ${usdt} USDT for ${gt} GT — tx ${fakeHash()}`, "good");
+        refreshUI();
+    }
+  
+    function stake(player, amount){
+        amount = Math.max(0, Math.floor(amount));
+        if(!amount){ toast("Enter stake amount > 0"); return; }
+        if(state[player].gt < amount){ toast(`${player.toUpperCase()} not enough GT`); return; }
+  
+    if(state.stakeLocked && amount !== state.targetStake){
+        toast(`Stake locked at ${state.targetStake} GT`);
+        return;
+    }
+  
+    state[player].gt -= amount;
+    state[player].staked += amount;
+    addLog(`[STAKE] ${player.toUpperCase()} staked ${amount} GT — tx ${fakeHash()}`, "warn");
+  
+    if(!state.stakeLocked && (state.p1.staked>0 || state.p2.staked>0)){
+        state.stakeLocked = true;
+        state.targetStake = state[player].staked;
+        addLog(`[STAKE] Stake target locked at ${state.targetStake} GT`, "warn");
+    }
+  
+    refreshUI();
+    if(state.p1.staked>0 && state.p1.staked===state.p2.staked){
+        toast("Both players staked equally. Ready to start!");
+    }
+    }
+  
+    function payout(winner){ 
+    const total = state.p1.staked + state.p2.staked;
+    state[winner].gt += total; 
+    addLog(`[PAYOUT] ${winner.toUpperCase()} received ${total} GT — tx ${fakeHash()}`, "good");
+    state.p1.staked = 0; state.p2.staked = 0;
+    state.stakeLocked = false; state.targetStake = 0;
+    refreshUI();
+    }
+  
+    function resetEconomy(keepGT=false){
+        if(!keepGT){ state.p1.gt = 0; state.p2.gt = 0; }
+        state.p1.staked = 0; state.p2.staked = 0;
+        state.stakeLocked = false; state.targetStake = 0;
+        refreshUI();
+    }
+  
+    el.p1BuyBtn.onclick = ()=> buy('p1', Number(el.p1Buy.value||0));
+    el.p2BuyBtn.onclick = ()=> buy('p2', Number(el.p2Buy.value||0));
+    el.p1StakeBtn.onclick = ()=> stake('p1', Number(el.p1Stake.value||0));
+    el.p2StakeBtn.onclick = ()=> stake('p2', Number(el.p2Stake.value||0));
+    const G = {
+    w: el.canvas.width,
+    h: el.canvas.height,
+    ctx: el.canvas.getContext('2d'),
+    p1: { x: 26,  y: 220, w: 14, h: 120, vy:0, speed:7, up:false, down:false, color:'#7df9ff' },
+    p2: { x: 940, y: 220, w: 14, h: 120, vy:0, speed:7, up:false, down:false, color:'#b388ff' },
+    ball: { x:490, y:280, r:10, vx:6, vy:3, color:'#eaf9ff' },
+    s1: 0, s2: 0,
+    playing:false,
+    lastServe: 1,
+    audio: { ctx:null, enabled:true }
+  };
+  
+    function beep(freq=440, dur=0.06, type='sine', vol=0.05){
+    try{
+        if(!G.audio.ctx) G.audio.ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const ctx=G.audio.ctx;
+        const o=ctx.createOscillator(), g=ctx.createGain();
+        o.type=type; o.frequency.value=freq; g.gain.value=vol;
+        o.connect(g); g.connect(ctx.destination);
+        o.start(); setTimeout(()=>o.stop(), dur*1000);
+    }catch(e){/* ignore */}
+  }
+  
+  function centerBall(dir=1){
+    G.ball.x = G.w/2; G.ball.y = G.h/2;
+    const speed=7; const angle=(Math.random()*Math.PI/3)-(Math.PI/6);
+    G.ball.vx = speed * dir * Math.cos(angle);
+    G.ball.vy = speed * Math.sin(angle);
+  }
+  
+    function drawScene(){
+    const c=G.ctx;
+    const grad=c.createLinearGradient(0,0,G.w,G.h);
+    grad.addColorStop(0,"#0a0f1a"); grad.addColorStop(1,"#0a0d13");
+    c.fillStyle=grad; c.fillRect(0,0,G.w,G.h);
+  
+    c.fillStyle='rgba(125,249,255,.05)';
+    c.beginPath(); c.arc(G.w/2,G.h/2,160,0,Math.PI*2); c.fill();
+  
+    c.fillStyle='rgba(125,249,255,.25)';
+    for(let y=20;y<G.h;y+=36){ c.fillRect(G.w/2-1,y,2,18); }
+  
+    c.shadowBlur=18; c.shadowColor='rgba(125,249,255,.35)';
+    c.fillStyle=G.p1.color; c.fillRect(G.p1.x,G.p1.y,G.p1.w,G.p1.h);
+    c.shadowColor='rgba(179,136,255,.35)';
+    c.fillStyle=G.p2.color; c.fillRect(G.p2.x,G.p2.y,G.p2.w,G.p2.h);
+    c.shadowBlur=0;
+  
+    c.fillStyle=G.ball.color;
+    c.beginPath(); c.arc(G.ball.x,G.ball.y,G.ball.r,0,Math.PI*2); c.fill();
+  }
+  
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)) }
+  
+    function step(){
+    if(!G.playing){ drawScene(); requestAnimationFrame(step); return; }
+  
+    G.p1.vy = (G.p1.up?-1:0 + G.p1.down?1:0) * G.p1.speed;
+    G.p2.vy = (G.p2.up?-1:0 + G.p2.down?1:0) * G.p2.speed;
+    if(G.p1.up && !G.p1.down) G.p1.vy = -G.p1.speed;
+    else if(G.p1.down && !G.p1.up) G.p1.vy = G.p1.speed; else if(!G.p1.up && !G.p1.down) G.p1.vy=0;
+    if(G.p2.up && !G.p2.down) G.p2.vy = -G.p2.speed;
+    else if(G.p2.down && !G.p2.up) G.p2.vy = G.p2.speed; else if(!G.p2.up && !G.p2.down) G.p2.vy=0;
+  
+    G.p1.y = clamp(G.p1.y + G.p1.vy, 10, G.h - G.p1.h - 10);
+    G.p2.y = clamp(G.p2.y + G.p2.vy, 10, G.h - G.p2.h - 10);
+  
+    G.ball.x += G.ball.vx; G.ball.y += G.ball.vy;
+  
+    if(G.ball.y <= 10+G.ball.r){ G.ball.y=10+G.ball.r; G.ball.vy*=-1; beep(660,.04,'square') }
+    if(G.ball.y >= G.h-10-G.ball.r){ G.ball.y=G.h-10-G.ball.r; G.ball.vy*=-1; beep(660,.04,'square') }
+  
+    if(G.ball.x - G.ball.r <= G.p1.x + G.p1.w &&
+        G.ball.y >= G.p1.y && G.ball.y <= G.p1.y + G.p1.h &&
+        G.ball.vx < 0){
+        G.ball.x = G.p1.x + G.p1.w + G.ball.r + 0.5;
+        const rel = (G.ball.y - (G.p1.y + G.p1.h/2)) / (G.p1.h/2);
+        const angle = rel * (Math.PI/3);
+        const speed = Math.min(14, Math.hypot(G.ball.vx,G.ball.vy)*1.05 + 0.5);
+        G.ball.vx = Math.abs(speed*Math.cos(angle));
+        G.ball.vy = speed*Math.sin(angle);
+        beep(420,.05,'sawtooth');
+    }
+    if(G.ball.x + G.ball.r >= G.p2.x &&
+        G.ball.y >= G.p2.y && G.ball.y <= G.p2.y + G.p2.h &&
+        G.ball.vx > 0){
+        G.ball.x = G.p2.x - G.ball.r - 0.5;
+        const rel = (G.ball.y - (G.p2.y + G.p2.h/2)) / (G.p2.h/2);
+        const angle = rel * (Math.PI/3);
+        const speed = Math.min(14, Math.hypot(G.ball.vx,G.ball.vy)*1.05 + 0.5);
+        G.ball.vx = -Math.abs(speed*Math.cos(angle));
+        G.ball.vy = speed*Math.sin(angle);
+        beep(520,.05,'sawtooth');
+    }
+  
+    if(G.ball.x < -40){
+        G.s2++; el.s2.textContent=G.s2; beep(240,.18,'triangle',.07);
+        centerBall(+1); 
+    }
+    if(G.ball.x > G.w+40){
+        G.s1++; el.s1.textContent=G.s1; beep(240,.18,'triangle',.07);
+        centerBall(-1);
+    }
+  
+    drawScene();
+  
+    if(G.s1>=state.winScore || G.s2>=state.winScore){
+        G.playing = false;
+        const winner = (G.s1>G.s2) ? 'p1' : 'p2';
+        toast((winner==='p1'?'P1':'P2') + ' wins! Payout executing…');
+        addLog(`[GAME] Winner: ${winner.toUpperCase()} ( ${G.s1} - ${G.s2} )`, "good");
+        payout(winner);
+        
+    }
+  
+    requestAnimationFrame(step);
+  }
+  
+    function resetGame(keepScores=false){
+    G.p1.y = 220; G.p2.y = 220;
+    centerBall(G.lastServe===1?1:-1);
+    if(!keepScores){ G.s1=0; G.s2=0; el.s1.textContent='0'; el.s2.textContent='0'; }
+    drawScene();
+  }
+  
+    el.startBtn.onclick = ()=>{
+    if(!(state.p1.staked>0 && state.p1.staked===state.p2.staked)){
+        toast("Both players must stake the same amount first.");
+        return;
+    }
+    if(state.started){ toast("Match already started"); return; }
+    state.started = true; G.playing = true; resetGame(true);
+    addLog(`[GAME] Match started. Stake each: ${state.p1.staked} GT`, "warn");
+    toast("Game started! Good luck.");
+    };
+    el.resetBtn.onclick = ()=>{
+    state.started = false; G.playing = false;
+    resetGame(false);
+    state.p1.gt += state.p1.staked; state.p2.gt += state.p2.staked;
+    state.p1.staked=0; state.p2.staked=0; state.stakeLocked=false; state.targetStake=0;
+    addLog(`[RESET] Match reset. Stakes returned.`, "warn");
+    refreshUI();
+    };
+  
+    window.addEventListener('keydown', (e)=>{
+    if(e.key==='w'||e.key==='W') G.p1.up=true;
+    if(e.key==='s'||e.key==='S') G.p1.down=true;
+    if(e.key==='ArrowUp') G.p2.up=true;
+    if(e.key==='ArrowDown') G.p2.down=true;
+    });
+    window.addEventListener('keyup', (e)=>{
+    if(e.key==='w'||e.key==='W') G.p1.up=false;
+    if(e.key==='s'||e.key==='S') G.p1.down=false;
+    if(e.key==='ArrowUp') G.p2.up=false;
+    if(e.key==='ArrowDown') G.p2.down=false;
+  });
+  
+    refreshUI();
+    resetGame(false);
+    requestAnimationFrame(step);
+    </script>
+    </body>
+    </html>
+  
